@@ -12,7 +12,7 @@ jobs:
   # ==========================================
   build-and-test:
     name: Continuous Integration (CI)
-    runs-on: self-hosted
+    runs-on: ubuntu-latest # Đã khôi phục về máy chủ mặc định của GitHub
 
     steps:
       - name: Lấy mã nguồn
