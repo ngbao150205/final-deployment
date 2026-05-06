@@ -76,6 +76,7 @@ jobs:
     name: Deploy to Staging Environment
     needs: build-and-test
     runs-on: ubuntu-latest
+    environment: staging # 🔴 BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ ĐỌC ĐƯỢC SECRETS
 
     steps:
       - name: Lấy mã nguồn
@@ -86,7 +87,7 @@ jobs:
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USERNAME }}
-          key: ${{ secrets.STAGING_KEY }} # Kiểm tra lại tên biến này trong GitHub Setting
+          key: ${{ secrets.STAGING_KEY }}
           source: "final_code/docker-compose.staging.yml" 
           target: "/home/ubuntu/app/" 
           strip_components: 1 
@@ -95,9 +96,10 @@ jobs:
       - name: Deploy Staging
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.STAGING_HOST }} # Dùng chung bộ biến với SCP cho chắc chắn
+          host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USERNAME }}
           key: ${{ secrets.STAGING_KEY }}
+          script_stop: true # Thêm dòng này để dừng ngay nếu lệnh cd bị lỗi
           script: |
             cd /home/ubuntu/app
             export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
