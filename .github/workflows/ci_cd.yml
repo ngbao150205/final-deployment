@@ -76,7 +76,7 @@ jobs:
     name: Deploy to Staging Environment
     needs: build-and-test
     runs-on: ubuntu-latest
-    environment: staging # 🔴 BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ ĐỌC ĐƯỢC SECRETS
+    environment: staging # Vẫn giữ nguyên nếu bạn dùng Environment protection
 
     steps:
       - name: Lấy mã nguồn
@@ -85,9 +85,9 @@ jobs:
       - name: Copy Docker Compose to Server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USERNAME }}
-          key: ${{ secrets.STAGING_KEY }}
+          host: ${{ secrets.SERVER_HOST }}      # Đã sửa thành SERVER_HOST
+          username: ${{ secrets.SERVER_USER }}  # Đã sửa thành SERVER_USER
+          key: ${{ secrets.SERVER_SSH_KEY }}    # Đã sửa thành SERVER_SSH_KEY
           source: "final_code/docker-compose.staging.yml" 
           target: "/home/ubuntu/app/" 
           strip_components: 1 
@@ -96,10 +96,10 @@ jobs:
       - name: Deploy Staging
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USERNAME }}
-          key: ${{ secrets.STAGING_KEY }}
-          script_stop: true # Thêm dòng này để dừng ngay nếu lệnh cd bị lỗi
+          host: ${{ secrets.SERVER_HOST }}      # Đã sửa thành SERVER_HOST
+          username: ${{ secrets.SERVER_USER }}  # Đã sửa thành SERVER_USER
+          key: ${{ secrets.SERVER_SSH_KEY }}    # Đã sửa thành SERVER_SSH_KEY
+          script_stop: true
           script: |
             cd /home/ubuntu/app
             export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
