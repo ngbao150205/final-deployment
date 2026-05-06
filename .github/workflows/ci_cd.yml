@@ -104,7 +104,7 @@ jobs:
             export GITHUB_SHA="${{ github.sha }}"
             
             # Deploy độc lập bằng stack mới tên là 'staging-stack'
-            docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=false
+            docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=true
             
             echo "✅ Staging deployment completed automatically."
 
