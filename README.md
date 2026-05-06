@@ -11,7 +11,7 @@ Traefik → Reverse Proxy + SSL tự động
 
 ⚠️ Lưu ý bảo mật: Các file chứa thông tin nhạy cảm đã được loại khỏi Git. Bạn cần bổ sung thủ công trước khi chạy dự án.
 
-## 📋 1. Yêu cầu hệ thống
+## 📋 1. Yêu cầu hệ thống:
 
 Đảm bảo máy đã cài đặt:
 
