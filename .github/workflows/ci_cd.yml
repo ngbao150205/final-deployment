@@ -54,10 +54,11 @@ jobs:
         with:
           image-ref: '${{ secrets.DOCKER_USERNAME }}/final:${{ github.sha }}'
           format: 'table'
-          exit-code: '0'
+          exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+          trivyignores: 'final_code/.trivyignore'
 
       - name: Đăng nhập Docker Hub
         uses: docker/login-action@v3
