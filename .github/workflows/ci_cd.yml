@@ -74,39 +74,46 @@ jobs:
   # ==========================================
   deploy-staging:
     name: Deploy to Staging Environment
-    needs: build-and-test # Phải đợi Job CI chạy xong
+    needs: build-and-test
     runs-on: ubuntu-latest
 
     steps:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
-      - name: Copy Compose File lên Server (Staging)
+      - name: Copy Docker Compose to Server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "final_code/docker-compose.staging.yml"
-          target: "/home/${{ secrets.SERVER_USER }}/app/"
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_KEY }}
+          source: "final_code/docker-compose.staging.yml" 
+          target: "/home/ubuntu/app/" 
+          strip_components: 1 
+          overwrite: true
 
       - name: Deploy Staging
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          host: ${{ secrets.STAGING_HOST }} # Sử dụng đồng nhất secret
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_KEY }}
+          script_stop: true # Cực kỳ quan trọng: Dừng và báo lỗi ngay nếu có lệnh fail
           script: |
-            cd /home/${{ secrets.SERVER_USER }}/app/final_code
+            # 1. Vào đúng thư mục nơi SCP đã đặt file
+            cd /home/ubuntu/app
             
-            # Export biến để truyền vào file docker-compose.staging.yml
+            # 2. Kiểm tra file (giúp bạn debug trong log)
+            ls -l docker-compose.staging.yml
+            
+            # 3. Export biến môi trường
             export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
             export GITHUB_SHA="${{ github.sha }}"
             
-            # Deploy độc lập bằng stack mới tên là 'staging-stack'
+            # 4. Deploy (dùng --detach=true để lệnh SSH kết thúc ngay sau khi gửi lệnh cho Swarm)
             docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=true
             
-            echo "✅ Staging deployment completed automatically."
+            echo "✅ Staging deployment command sent successfully."
 
   # ==========================================
   # JOB 3: PRODUCTION - Đợi Phê Duyệt & Blue-Green (Tích hợp Rollback)
