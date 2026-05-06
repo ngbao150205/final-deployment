@@ -38,7 +38,7 @@ Không chỉnh sửa nếu không cần thiết
 ### 🔑 3.1 Cấp quyền cho SSH Key
 chmod 400 labsuser.pem
 
-# export các key vào terminal:
+# export các key vào terminal::
 export AWS_ACCESS_KEY_ID=""
 
 export AWS_SECRET_ACCESS_KEY=""
