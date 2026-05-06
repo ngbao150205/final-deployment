@@ -1,4 +1,4 @@
-bucket         = "nbao-terraform-state-final"
+bucket         = "tên-bucket-s3-của-thầy-cô"
 key            = "final-project/terraform.tfstate"
 region         = "us-east-1"
 use_lockfile   = true
