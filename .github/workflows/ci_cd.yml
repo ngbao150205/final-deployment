@@ -86,7 +86,7 @@ jobs:
         with:
           host: ${{ secrets.STAGING_HOST }}
           username: ${{ secrets.STAGING_USERNAME }}
-          key: ${{ secrets.STAGING_KEY }}
+          key: ${{ secrets.STAGING_KEY }} # Kiểm tra lại tên biến này trong GitHub Setting
           source: "final_code/docker-compose.staging.yml" 
           target: "/home/ubuntu/app/" 
           strip_components: 1 
@@ -95,25 +95,14 @@ jobs:
       - name: Deploy Staging
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.STAGING_HOST }} # Sử dụng đồng nhất secret
+          host: ${{ secrets.STAGING_HOST }} # Dùng chung bộ biến với SCP cho chắc chắn
           username: ${{ secrets.STAGING_USERNAME }}
           key: ${{ secrets.STAGING_KEY }}
-          script_stop: true # Cực kỳ quan trọng: Dừng và báo lỗi ngay nếu có lệnh fail
           script: |
-            # 1. Vào đúng thư mục nơi SCP đã đặt file
             cd /home/ubuntu/app
-            
-            # 2. Kiểm tra file (giúp bạn debug trong log)
-            ls -l docker-compose.staging.yml
-            
-            # 3. Export biến môi trường
             export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
             export GITHUB_SHA="${{ github.sha }}"
-            
-            # 4. Deploy (dùng --detach=true để lệnh SSH kết thúc ngay sau khi gửi lệnh cho Swarm)
             docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=true
-            
-            echo "✅ Staging deployment command sent successfully."
 
   # ==========================================
   # JOB 3: PRODUCTION - Đợi Phê Duyệt & Blue-Green (Tích hợp Rollback)
