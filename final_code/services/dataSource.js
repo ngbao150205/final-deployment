@@ -8,7 +8,7 @@ let isMongo = false;
 
 function createAppleProducts() {
   // Realistic Apple product list with example prices and short descriptions
-  const products = 
+  const products = [
     {
       name: 'iPhone 14 Pro Max',
       price: 1099,
