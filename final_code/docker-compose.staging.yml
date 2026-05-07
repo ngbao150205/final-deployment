@@ -4,7 +4,7 @@ services:
   app-staging:
     image: ${DOCKER_USERNAME}/final:${GITHUB_SHA}
     ports:
-      - "8081:3000" # Đổi sang 8081 để né Traefik
+      - "8081:3000"
     networks:
       - staging-net
 
