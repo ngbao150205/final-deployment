@@ -1,8 +1,3 @@
-setTimeout(() => {
-    console.error("FATAL ERROR: Khong the ket noi toi Database. He thong sap down!");
-    process.exit(1);
-}, 5000);
-
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
