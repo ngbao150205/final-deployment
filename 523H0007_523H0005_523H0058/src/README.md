@@ -33,7 +33,7 @@ docker stack deploy -c docker-compose.yml ecommerce
 6. Hủy tài nguyên (Cleanup)Chạy lệnh sau tại máy local để tránh phát sinh chi phí AWS:Bashterraform destroy -auto-approve
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-Public domain URL provided::
+Public domain URL provided:::
 https://namcloud.xyz
 
 Monitoring dashboards:
