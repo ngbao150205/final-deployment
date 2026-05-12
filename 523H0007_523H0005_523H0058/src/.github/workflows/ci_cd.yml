@@ -1,0 +1,211 @@
+name: Continuous Integration and Continuous Delivery (CI/CD)
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  # ==========================================
+  # JOB 1: CI - Build, Test & Scan
+  # ==========================================
+  build-and-test:
+    name: Continuous Integration (CI)
+    runs-on: ubuntu-latest # Đã khôi phục về máy chủ mặc định của GitHub
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Cài dependencies (clean install)
+        run: cd final_code && npm ci
+
+      - name: Code Quality and Linting
+        run: |
+          cd final_code
+          # Ép hệ thống cài đặt phiên bản ESLint 8.57.0 (chuẩn cũ)
+          npm install eslint@8.57.0 --no-save
+          # Khởi chạy eslint để quét toàn bộ file js (bỏ lệnh bypass || true)
+          npx eslint . --ext .js,.jsx --no-error-on-unmatched-pattern
+
+      - name: Scan Application (Trivy FS)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'final_code'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Build Docker Image
+        run: cd final_code && docker build --no-cache -t ${{ secrets.DOCKER_USERNAME }}/final:${{ github.sha }} .
+
+      - name: Scan Docker Image (Trivy Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/final:${{ github.sha }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          trivyignores: 'final_code/.trivyignore'
+
+      - name: Đăng nhập Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/final:${{ github.sha }}
+
+  # ==========================================
+  # JOB 2: STAGING - Deploy Tự Động
+  # ==========================================
+  deploy-staging:
+    name: Deploy to Staging Environment
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: staging # Vẫn giữ nguyên nếu bạn dùng Environment protection
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Copy Docker Compose to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}      # Đã sửa thành SERVER_HOST
+          username: ${{ secrets.SERVER_USER }}  # Đã sửa thành SERVER_USER
+          key: ${{ secrets.SERVER_SSH_KEY }}    # Đã sửa thành SERVER_SSH_KEY
+          source: "final_code/docker-compose.staging.yml" 
+          target: "/home/ubuntu/app/" 
+          strip_components: 1 
+          overwrite: true
+
+      - name: Deploy Staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}      # Đã sửa thành SERVER_HOST
+          username: ${{ secrets.SERVER_USER }}  # Đã sửa thành SERVER_USER
+          key: ${{ secrets.SERVER_SSH_KEY }}    # Đã sửa thành SERVER_SSH_KEY
+          script_stop: true
+          script: |
+            cd /home/ubuntu/app
+            export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
+            export GITHUB_SHA="${{ github.sha }}"
+            docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=true
+
+  # ==========================================
+  # JOB 3: PRODUCTION - Đợi Phê Duyệt & Blue-Green (Tích hợp Rollback)
+  # ==========================================
+  deploy-production:
+    name: Deploy to Production (Blue-Green & Rollback)
+    needs: deploy-staging # Phải đợi Job Staging chạy xong
+    runs-on: ubuntu-latest
+    environment: production # Kích hoạt chốt chặn Manual Approval
+
+    steps:
+      - name: Lấy mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Copy Compose File lên Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "final_code/docker-compose.yml,final_code/prometheus.yml,final_code/grafana_datasource.yml"
+          target: "/home/${{ secrets.SERVER_USER }}/app/"
+
+      - name: Deploy Blue-Green with Automated Rollback Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd /home/${{ secrets.SERVER_USER }}/app/final_code
+
+            # 1. Detect môi trường đang chạy
+            GREEN_REPLICAS=$(docker service ls --filter name=my-stack_app-green --format "{{.Replicas}}" | awk -F'/' '{print $1}')
+            GREEN_REPLICAS=${GREEN_REPLICAS:-0}
+
+            if [ "$GREEN_REPLICAS" -gt "0" ]; then
+                echo "🟢 Green đang chạy -> Deploy Blue"
+                TARGET="blue"
+                OLD="green"
+            else
+                echo "🔵 Blue đang chạy -> Deploy Green"
+                TARGET="green"
+                OLD="blue"
+            fi
+
+            NEW_TAG="${{ github.sha }}"
+
+            OLD_IMAGE=$(docker service ls --filter name=my-stack_app-$OLD --format "{{.Image}}" | head -n 1)
+            OLD_TAG=$(echo $OLD_IMAGE | awk -F':' '{print $2}' | awk -F'@' '{print $1}')
+            [ -z "$OLD_TAG" ] && OLD_TAG=$NEW_TAG
+
+            echo "Version - New: $NEW_TAG | Old: $OLD_TAG"
+
+            # 2. Export ENV
+            if [ "$TARGET" == "blue" ]; then
+                export BLUE_IMAGE_TAG=$NEW_TAG
+                export GREEN_IMAGE_TAG=$OLD_TAG
+                export BLUE_REPLICAS=3
+                export GREEN_REPLICAS=3
+            else
+                export GREEN_IMAGE_TAG=$NEW_TAG
+                export BLUE_IMAGE_TAG=$OLD_TAG
+                export GREEN_REPLICAS=3
+                export BLUE_REPLICAS=3
+            fi
+
+            # 3. 🚀 Deploy 1 LẦN DUY NHẤT (Bật bản mới lên song song bản cũ)
+            docker stack deploy -c docker-compose.yml my-stack --with-registry-auth
+
+            # ==========================================================
+            # 4. CHỜ ĐỢI VÀ KIỂM TRA SỨC KHỎE (YÊU CẦU 7.4)
+            # ==========================================================
+            echo "⏳ Đợi 45 giây để Docker Swarm chạy Healthcheck và xác nhận trạng thái..."
+            sleep 45
+
+            REPLICAS_STATUS=$(docker service ls --filter name=my-stack_app-$TARGET --format "{{.Replicas}}")
+            # Đã thêm tr -d ' ' để xóa khoảng trắng an toàn
+            RUNNING=$(echo $REPLICAS_STATUS | awk -F'/' '{print $1}' | tr -d ' ')
+            TARGET_COUNT=$(echo $REPLICAS_STATUS | awk -F'/' '{print $2}' | tr -d ' ')
+
+            echo "📊 Trạng thái của my-stack_app-$TARGET: $RUNNING / $TARGET_COUNT replicas"
+
+            # Đã sửa != thành -lt (nhỏ hơn) để tránh lỗi logic khi scale
+            if [ "$RUNNING" -lt "$TARGET_COUNT" ] || [ "$RUNNING" == "0" ]; then
+                echo "❌ LỖI NGHIÊM TRỌNG: Phân khu $TARGET không vượt qua được Healthcheck!"
+                echo "🔄 Docker Swarm đã kích hoạt Rollback tự động."
+                echo "🛑 Hủy bỏ Pipeline ngay lập tức để bảo vệ hệ thống. Phân khu $OLD vẫn đang phục vụ người dùng."
+                exit 1 
+            fi
+
+            # ==========================================================
+            # 5. SCALE SERVICE CŨ (Chỉ tắt nếu bản mới hoàn toàn khỏe mạnh)
+            # ==========================================================
+            echo "✅ Bản cập nhật $TARGET đã khởi động thành công 100%!"
+            echo "🗑️ Bắt đầu tắt phân khu cũ $OLD để giải phóng tài nguyên..."
+            
+            if [ "$TARGET" == "blue" ]; then
+                docker service scale my-stack_app-green=0
+            else
+                docker service scale my-stack_app-blue=0
+            fi
+
+            echo "🎉 Blue-Green deployment completed successfully!"

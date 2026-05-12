@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus tự monitor
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Node Exporter (CPU/RAM máy)
+  - job_name: 'node-exporter'
+    dns_sd_configs:
+      - names: ['tasks.my-stack_node-exporter']
+        type: 'A'
+        port: 9100
+
+  # cAdvisor (container metrics)
+  - job_name: 'cadvisor'
+    dns_sd_configs:
+      - names: ['tasks.my-stack_cadvisor']
+        type: 'A'
+        port: 8080
+
+  - job_name: 'traefik'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['my-stack_traefik:8082']

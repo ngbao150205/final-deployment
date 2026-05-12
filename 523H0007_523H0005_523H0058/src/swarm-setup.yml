@@ -1,0 +1,77 @@
+---
+- name: Cai dat Docker tren tat ca cac node
+  hosts: all
+  become: yes
+  tasks:
+    - name: Cap nhat apt va cai cac goi phu tro
+      apt:
+        name: ['apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'gnupg']
+        state: present
+        update_cache: yes
+
+    - name: Tao thu muc keyrings chuan cua Ubuntu 22.04
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Them Docker GPG key (Chuan moi)
+      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg # Tinh luy dang: Neu file co roi thi bo qua
+
+    - name: Them Docker APT repository (Chuan moi)
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu jammy stable"
+        state: present
+        filename: docker
+
+    - name: Cai dat Docker Engine
+      apt:
+        name: ['docker-ce', 'docker-ce-cli', 'containerd.io']
+        state: present
+        update_cache: yes
+
+    - name: Them user ubuntu vao group docker
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+- name: Khoi tao Docker Swarm tren Manager
+  hosts: managers
+  become: yes
+  tasks:
+    - name: Kiem tra Swarm da ton tai chua
+      command: docker info
+      register: docker_info
+      changed_when: false
+
+    - name: Khoi tao Swarm (Init)
+      command: docker swarm init --advertise-addr {{ ansible_default_ipv4.address }}
+      when: "'Swarm: inactive' in docker_info.stdout"
+
+    - name: Lay ma Token de gia nhap worker
+      command: docker swarm join-token -q worker
+      register: worker_token
+      changed_when: false
+
+    - name: Luu tru Token vao bo nho tam
+      set_fact:
+        swarm_worker_token: "{{ worker_token.stdout }}"
+
+- name: Ket noi cac Worker vao cum Swarm
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Kiem tra trang thai Swarm tren worker
+      command: docker info
+      register: docker_worker_info
+      changed_when: false
+
+    - name: Gia nhap cum (Join Swarm)
+      command: >
+        docker swarm join 
+        --token {{ hostvars[groups['managers'][0]]['swarm_worker_token'] }} 
+        {{ hostvars[groups['managers'][0]]['ansible_default_ipv4']['address'] }}:2377
+      when: "'Swarm: inactive' in docker_worker_info.stdout"

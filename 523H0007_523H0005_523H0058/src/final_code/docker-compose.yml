@@ -1,0 +1,237 @@
+version: '3.8'
+
+services:
+  # 🍃 DATABASE (Đã thêm cơ chế Rollback)
+  mongodb:
+    image: mongo:8.0
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - app-network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback # Tự động rollback nếu mongo lỗi
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+
+  # 1. CỔNG GÁC TRAEFIK
+  traefik:
+    image: traefik:v2.11
+    command:
+      - "--api.insecure=true" # Bật API Insecure để cho phép truy cập Dashboard ở port 8080
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=nbao1502@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--entrypoints.metrics.address=:8082"
+      - "--metrics.prometheus.entrypoint=metrics"
+      # Đã xóa 2 dòng tlschallenge và duplicate acme.json gây xung đột
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik-certs:/letsencrypt"
+    networks:
+      - app-network
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  # 🔵 PHÂN KHU BLUE (Tích hợp Rollback 7.4)
+  app-blue:
+    image: nbao1502/final:${BLUE_IMAGE_TAG}
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/products_db
+    networks:
+      - app-network
+    healthcheck:
+      # ✅ Đã sửa: Thêm -O /dev/null để chống xả rác vào file log hệ thống
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s # Đợi 30s cho app khởi động xong mới check
+    deploy:
+      replicas: ${BLUE_REPLICAS:-3}
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback # QUAN TRỌNG: Tự động quay về bản cũ nếu healthcheck fail
+        monitor: 15s             # Theo dõi 15s sau khi update để xác nhận ổn định
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.app-blue.rule=Host(`namcloud.xyz`)"
+        - "traefik.http.routers.app-blue.entrypoints=websecure"
+        - "traefik.http.routers.app-blue.tls.certresolver=myresolver"
+        - "traefik.http.services.app-blue.loadbalancer.server.port=3000"
+
+  # 🟢 PHÂN KHU GREEN (Tích hợp Rollback 7.4)
+  app-green:
+    image: nbao1502/final:${GREEN_IMAGE_TAG}
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/products_db
+    networks:
+      - app-network
+    healthcheck:
+      # ✅ Đã sửa: Thêm -O /dev/null để chống xả rác vào file log hệ thống
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: ${GREEN_REPLICAS:-0}
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback # QUAN TRỌNG: Tự động quay về bản cũ nếu healthcheck fail
+        monitor: 15s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.app-green.rule=Host(`namcloud.xyz`)"
+        - "traefik.http.routers.app-green.entrypoints=websecure"
+        - "traefik.http.routers.app-green.tls.certresolver=myresolver"
+        - "traefik.http.services.app-green.loadbalancer.server.port=3000"
+
+  # 👁️ VISUALIZER
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8083:8083"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - app-network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  # 📊 PROMETHEUS
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    volumes:
+      - prometheus_data:/prometheus
+    configs:
+      - source: prometheus_config_v6
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - app-network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.prometheus.rule=Host(`prometheus.namcloud.xyz`)"
+        - "traefik.http.routers.prometheus.entrypoints=websecure"
+        - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+        - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # 📈 GRAFANA
+  grafana:
+    image: grafana/grafana:10.4.0
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+    configs:
+      - source: grafana_datasource
+        target: /etc/grafana/provisioning/datasources/prometheus.yml
+    networks:
+      - app-network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.rule=Host(`monitor.namcloud.xyz`)"
+        - "traefik.http.routers.grafana.entrypoints=websecure"
+        - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # 🖥️ NODE EXPORTER
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+    networks:
+      - app-network
+    deploy:
+      mode: global
+
+  # 🐳 CADVISOR
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    privileged: true
+    user: root
+    command:
+      - '--docker_only=true'
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - app-network
+    deploy:
+      mode: global
+      restart_policy:
+        condition: any
+
+# ==========================================
+# KHAI BÁO NETWORK, VOLUMES & CONFIGS
+# ==========================================
+networks:
+  app-network:
+    driver: overlay
+
+volumes:
+  traefik-certs:
+  mongo-data:
+  prometheus_data:
+  grafana_data:
+
+configs:
+  prometheus_config_v6:
+    file: ./prometheus.yml
+  grafana_datasource:
+    file: ./grafana_datasource.yml
