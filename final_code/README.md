@@ -12,7 +12,7 @@
 - Khi cập nhật hoặc xóa product, file ảnh cũ (nằm trong `/uploads/`) sẽ bị xóa khỏi đĩa.
 - Khi khởi động và nếu kết nối MongoDB thành công và collection rỗng, ứng dụng sẽ tự seed 10 sản phẩm Apple mẫu vào MongoDB.
 
-**Cấu trúc chính**
+**Cấu trúc chính***
 - `main.js` — entrypoint: kết nối MongoDB (timeout 3s), fallback in-memory, khởi chạy Express.
 - `models/product.js` — Mongoose schema (`name`, `price`, `color`, `description`, `imageUrl`).
 - `services/dataSource.js` — lớp trừu tượng giữa MongoDB và in-memory (seed, CRUD, xóa file khi cần).
