@@ -22,6 +22,7 @@
 - `public/` — tệp tĩnh: CSS, JS, `uploads/` (ảnh được lưu ở đây).
 
 **Yêu cầu & cấu hình**
+#
 - Node.js 16+ (hoặc phiên bản tương thích) và `npm`.
 - File môi trường `.env` (đã có file mẫu trong repo):
 
