@@ -29,7 +29,7 @@ const PORT = process.env.PORT || 3000;
 async function connectWithRetry(mongoUri) {
   let retries = 5;
 
-  while (retries) {
+  while (retries) 
     try {
       console.log("Connecting to:", mongoUri);
 
