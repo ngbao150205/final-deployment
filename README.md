@@ -16,7 +16,7 @@ cp .env.example .env
 (Mặc định các biến đã được tối ưu cho Docker Swarm, Thầy/Cô có thể điều chỉnh PORT hoặc MongoDB URI nếu cần).🛠 
 4. Các bước triển khai chi tiết
 Bước 1: Cấp quyền và xác thực AWSBashchmod 400 <tên-file-key>.pem
-# Export AWS Session Token (nếu dùng Learner Lab)
+# Export AWS Session Token (nếu dùng Learner Lab):
 export AWS_ACCESS_KEY_ID=""
 export AWS_SECRET_ACCESS_KEY=""
 export AWS_SESSION_TOKEN=""
