@@ -178,7 +178,7 @@ jobs:
             # 4. CHỜ ĐỢI VÀ KIỂM TRA SỨC KHỎE (YÊU CẦU 7.4)
             # ==========================================================
             echo "⏳ Đợi 45 giây để Docker Swarm chạy Healthcheck và xác nhận trạng thái..."
-            sleep 30
+            sleep 45
 
             REPLICAS_STATUS=$(docker service ls --filter name=my-stack_app-$TARGET --format "{{.Replicas}}")
             # Đã thêm tr -d ' ' để xóa khoảng trắng an toàn
