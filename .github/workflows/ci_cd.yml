@@ -12,7 +12,7 @@ jobs:
   # ==========================================
   build-and-test:
     name: Continuous Integration (CI)
-    runs-on: ubuntu-latest # Đã khôi phục về máy chủ mặc định của GitHub
+    runs-on: ubuntu-latest 
 
     steps:
       - name: Lấy mã nguồn
@@ -84,9 +84,9 @@ jobs:
       - name: Copy Docker Compose to Server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SERVER_HOST }}      # Đã sửa thành SERVER_HOST
-          username: ${{ secrets.SERVER_USER }}  # Đã sửa thành SERVER_USER
-          key: ${{ secrets.SERVER_SSH_KEY }}    # Đã sửa thành SERVER_SSH_KEY
+          host: ${{ secrets.SERVER_HOST }}     
+          username: ${{ secrets.SERVER_USER }}  
+          key: ${{ secrets.SERVER_SSH_KEY }}   
           source: "final_code/docker-compose.staging.yml" 
           target: "/home/ubuntu/app/" 
           strip_components: 1 
@@ -110,9 +110,9 @@ jobs:
   # ==========================================
   deploy-production:
     name: Deploy to Production (Blue-Green & Rollback)
-    needs: deploy-staging # Phải đợi Job Staging chạy xong
+    needs: deploy-staging 
     runs-on: ubuntu-latest
-    environment: production # Kích hoạt chốt chặn Manual Approval
+    environment: production 
 
     steps:
       - name: Lấy mã nguồn
