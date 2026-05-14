@@ -103,7 +103,7 @@ jobs:
             cd /home/ubuntu/app
             export DOCKER_USERNAME="${{ secrets.DOCKER_USERNAME }}"
             export GITHUB_SHA="${{ github.sha }}"
-            docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=true
+            docker stack deploy -c docker-compose.staging.yml staging-stack --with-registry-auth --detach=false
 
   # ==========================================
   # JOB 3: PRODUCTION - Đợi Phê Duyệt & Blue-Green (Tích hợp Rollback)
