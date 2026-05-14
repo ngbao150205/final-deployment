@@ -176,7 +176,7 @@ jobs:
 
             COMMIT_MSG="${{ github.event.head_commit.message }}"
 
-            if echo "$COMMIT_MSG" | grep -Fq "[rollback-demo]"; then
+            if echo "$COMMIT_MSG" | grep -Fq "rollback-demo"; then
                 echo "🧪 Rollback demo mode enabled."
                 echo "🧪 Giả lập health check fail bằng cách scale phân khu mới về 0."
                 docker service scale my-stack_app-$TARGET=0
