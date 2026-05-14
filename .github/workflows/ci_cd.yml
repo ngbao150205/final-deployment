@@ -174,7 +174,13 @@ jobs:
             # 3. 🚀 Deploy 1 LẦN DUY NHẤT (Bật bản mới lên song song bản cũ)
             docker stack deploy -c docker-compose.yml my-stack --with-registry-auth
 
+            COMMIT_MSG="${{ github.event.head_commit.message }}"
 
+            if echo "$COMMIT_MSG" | grep -Fq "[rollback-demo]"; then
+                echo "🧪 Rollback demo mode enabled."
+                echo "🧪 Giả lập health check fail bằng cách scale phân khu mới về 0."
+                docker service scale my-stack_app-$TARGET=0
+            fi
 
             # ==========================================================
             # 4. CHỜ ĐỢI VÀ KIỂM TRA SỨC KHỎE (YÊU CẦU 7.4)
@@ -194,7 +200,8 @@ jobs:
                 echo "❌ LỖI NGHIÊM TRỌNG: Phân khu $TARGET không vượt qua được Healthcheck!"
                 echo "🔄 Docker Swarm đã kích hoạt Rollback tự động."
 
-              
+                docker service scale my-stack_app-$TARGET=0 || true
+                docker service scale my-stack_app-$OLD=3 || true
 
                 echo "🛑 Hủy bỏ Pipeline ngay lập tức để bảo vệ hệ thống. Phân khu $OLD vẫn đang phục vụ người dùng."
                 exit 1 
